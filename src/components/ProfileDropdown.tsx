@@ -6,6 +6,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Badge } from '@/components/ui/badge'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog'
 import { ScrollArea } from '@/components/ui/scroll-area'
+import { getAvatarUrl, getInitials, getAvatarColor } from '@/lib/avatar'
 import { 
   User, 
   Settings, 
@@ -48,9 +49,10 @@ interface ProfileDropdownProps {
   user: UserData
   onLogout: () => void
   onSettings: () => void
+  onProfileUpdate?: () => void
 }
 
-export default function ProfileDropdown({ user, onLogout, onSettings }: ProfileDropdownProps) {
+export default function ProfileDropdown({ user, onLogout, onSettings, onProfileUpdate }: ProfileDropdownProps) {
   const [isOpen, setIsOpen] = useState(false)
   const [showHistory, setShowHistory] = useState(false)
   const [loginHistory, setLoginHistory] = useState<LoginHistory[]>([])
@@ -69,6 +71,13 @@ export default function ProfileDropdown({ user, onLogout, onSettings }: ProfileD
     document.addEventListener('mousedown', handleClickOutside)
     return () => document.removeEventListener('mousedown', handleClickOutside)
   }, [])
+
+  // Refresh user data when dropdown opens
+  useEffect(() => {
+    if (isOpen && onProfileUpdate) {
+      onProfileUpdate()
+    }
+  }, [isOpen, onProfileUpdate])
 
   const toggleDropdown = () => {
     if (!isOpen && buttonRef.current) {
@@ -227,12 +236,71 @@ export default function ProfileDropdown({ user, onLogout, onSettings }: ProfileD
           variant="ghost"
           size="sm"
           onClick={toggleDropdown}
-          className="flex items-center gap-2 hover:bg-white/10 transition-all duration-200"
+          className="flex items-center gap-3 hover:bg-white/10 transition-all duration-200 px-3 py-2 min-w-0"
         >
-          <div className="w-8 h-8 bg-gradient-to-r from-cyan-600 to-blue-600 rounded-full flex items-center justify-center">
-            <User className="w-4 h-4 text-white" />
+          {user.avatar ? (
+            <div className="w-8 h-8 rounded-full overflow-hidden border-2 border-cyan-500/50 flex-shrink-0 bg-gradient-to-r from-cyan-600 to-blue-600">
+              {user.avatar.startsWith('data:') ? (
+                // Base64 Avatar
+                <img 
+                  src={user.avatar} 
+                  alt={user.name}
+                  className="w-full h-full object-cover"
+                  onError={(e) => {
+                    // Fallback ke initials jika base64 gagal
+                    e.currentTarget.style.display = 'none'
+                    const parent = e.currentTarget.parentElement
+                    if (parent) {
+                      parent.className = `w-8 h-8 bg-gradient-to-r ${getAvatarColor(user.name)} rounded-full flex items-center justify-center flex-shrink-0`
+                      parent.innerHTML = `<span class="text-white text-xs font-bold">${getInitials(user.name)}</span>`
+                    }
+                  }}
+                />
+              ) : (
+                // Legacy URL Avatar (buat backward compatibility)
+                <img 
+                  src={user.avatar} 
+                  alt={user.name}
+                  className="w-full h-full object-cover"
+                  onError={(e) => {
+                    // Fallback ke initials jika URL avatar gagal
+                    e.currentTarget.style.display = 'none'
+                    const parent = e.currentTarget.parentElement
+                    if (parent) {
+                      parent.className = `w-8 h-8 bg-gradient-to-r ${getAvatarColor(user.name)} rounded-full flex items-center justify-center flex-shrink-0`
+                      parent.innerHTML = `<span class="text-white text-xs font-bold">${getInitials(user.name)}</span>`
+                    }
+                  }}
+                />
+              )}
+            </div>
+          ) : (
+            // Default Avatar dengan Initials
+            <div className={`w-8 h-8 bg-gradient-to-r ${getAvatarColor(user.name)} rounded-full flex items-center justify-center flex-shrink-0`}>
+              <span className="text-white text-xs font-bold">
+                {getInitials(user.name)}
+              </span>
+            </div>
+          )}
+          
+          {/* User Name - Visible on larger screens */}
+          <div className="hidden sm:block min-w-0 flex-1">
+            <p className="text-sm font-medium text-white truncate" title={user.name}>
+              {user.name}
+            </p>
+            <p className="text-xs text-cyan-300 truncate" title={user.role}>
+              {user.role}
+            </p>
           </div>
-          <ChevronUp className={`w-4 h-4 text-cyan-300 transition-transform duration-200 ${isOpen ? 'rotate-180' : ''}`} />
+          
+          {/* User Name - Visible on mobile with shorter layout */}
+          <div className="sm:hidden min-w-0 flex-1">
+            <p className="text-sm font-medium text-white truncate" title={user.name}>
+              {user.name.split(' ')[0]}
+            </p>
+          </div>
+          
+          <ChevronUp className={`w-4 h-4 text-cyan-300 transition-transform duration-200 flex-shrink-0 ${isOpen ? 'rotate-180' : ''}`} />
         </Button>
 
         {isOpen && (
@@ -248,9 +316,50 @@ export default function ProfileDropdown({ user, onLogout, onSettings }: ProfileD
             {/* User Info */}
             <div className="p-4 border-b border-cyan-500/20">
               <div className="flex items-center gap-3">
-                <div className="w-12 h-12 bg-gradient-to-r from-cyan-600 to-blue-600 rounded-full flex items-center justify-center">
-                  <User className="w-6 h-6 text-white" />
-                </div>
+                {user.avatar ? (
+                  <div className="w-12 h-12 rounded-full overflow-hidden border-2 border-cyan-500/50 bg-gradient-to-r from-cyan-600 to-blue-600">
+                    {user.avatar.startsWith('data:') ? (
+                      // Base64 Avatar
+                      <img 
+                        src={user.avatar} 
+                        alt={user.name}
+                        className="w-full h-full object-cover"
+                        onError={(e) => {
+                          // Fallback ke initials jika base64 gagal
+                          e.currentTarget.style.display = 'none'
+                          const parent = e.currentTarget.parentElement
+                          if (parent) {
+                            parent.className = `w-12 h-12 bg-gradient-to-r ${getAvatarColor(user.name)} rounded-full flex items-center justify-center`
+                            parent.innerHTML = `<span class="text-white text-sm font-bold">${getInitials(user.name)}</span>`
+                          }
+                        }}
+                      />
+                    ) : (
+                      // Legacy URL Avatar (buat backward compatibility)
+                      <img 
+                        src={user.avatar} 
+                        alt={user.name}
+                        className="w-full h-full object-cover"
+                        onError={(e) => {
+                          // Fallback ke initials jika URL avatar gagal
+                          e.currentTarget.style.display = 'none'
+                          const parent = e.currentTarget.parentElement
+                          if (parent) {
+                            parent.className = `w-12 h-12 bg-gradient-to-r ${getAvatarColor(user.name)} rounded-full flex items-center justify-center`
+                            parent.innerHTML = `<span class="text-white text-sm font-bold">${getInitials(user.name)}</span>`
+                          }
+                        }}
+                      />
+                    )}
+                  </div>
+                ) : (
+                  // Default Avatar dengan Initials
+                  <div className={`w-12 h-12 bg-gradient-to-r ${getAvatarColor(user.name)} rounded-full flex items-center justify-center`}>
+                    <span className="text-white text-sm font-bold">
+                      {getInitials(user.name)}
+                    </span>
+                  </div>
+                )}
                 <div className="flex-1 min-w-0">
                   <h3 className="font-semibold text-white truncate">{user.name}</h3>
                   <p className="text-sm text-cyan-300 truncate">{user.email}</p>

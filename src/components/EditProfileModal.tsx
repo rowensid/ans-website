@@ -71,10 +71,10 @@ export default function EditProfileModal({ user, isOpen, onClose, onUpdate }: Ed
       return
     }
 
-    // Validate file size (max 5MB)
-    const maxSize = 5 * 1024 * 1024 // 5MB
+    // Validate file size (max 2MB)
+    const maxSize = 2 * 1024 * 1024 // 2MB
     if (file.size > maxSize) {
-      setErrors({ avatar: 'File size must be less than 5MB' })
+      setErrors({ avatar: 'File size must be less than 2MB' })
       return
     }
 
@@ -113,7 +113,8 @@ export default function EditProfileModal({ user, isOpen, onClose, onUpdate }: Ed
       const data = await response.json()
 
       if (response.ok) {
-        setFormData(prev => ({ ...prev, avatar: data.avatarUrl }))
+        setFormData(prev => ({ ...prev, avatar: data.avatar }))
+        setPreviewAvatar(data.avatar)
         setErrors({})
       } else {
         setErrors({ avatar: data.error || 'Failed to upload avatar' })
@@ -295,7 +296,7 @@ export default function EditProfileModal({ user, isOpen, onClose, onUpdate }: Ed
                     </Label>
                   </div>
                   <p className="text-xs text-slate-500">
-                    JPEG, PNG, WebP, or GIF (max 5MB)
+                    JPEG, PNG, WebP, or GIF (max 2MB, auto-compressed to max 500KB)
                   </p>
                   {errors.avatar && (
                     <p className="text-xs text-red-400">{errors.avatar}</p>

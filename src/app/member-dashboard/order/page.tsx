@@ -114,10 +114,25 @@ function OrderPageContent() {
     router.push('/member-dashboard')
   }
 
-  const handleLogout = () => {
-    localStorage.removeItem('auth_token')
-    localStorage.removeItem('user_data')
-    router.push('/login')
+  const handleLogout = async () => {
+    try {
+      const token = localStorage.getItem('auth_token')
+      if (token) {
+        await fetch('/api/auth/logout', {
+          headers: {
+            'Authorization': `Bearer ${token}`
+          }
+        })
+      }
+      localStorage.removeItem('auth_token')
+      localStorage.removeItem('user_data')
+      router.push('/gateway')
+    } catch (error) {
+      console.error('Logout error:', error)
+      localStorage.removeItem('auth_token')
+      localStorage.removeItem('user_data')
+      router.push('/gateway')
+    }
   }
 
   const handleSettings = () => {
@@ -143,6 +158,7 @@ function OrderPageContent() {
 
     try {
       const token = localStorage.getItem('auth_token')
+
       const response = await fetch('/api/orders', {
         method: 'POST',
         headers: {
@@ -150,27 +166,40 @@ function OrderPageContent() {
           'Authorization': `Bearer ${token}`
         },
         body: JSON.stringify({
-          serviceId: storeItem.id,
+          storeId: storeItem.id,
           amount: storeItem.price,
           paymentMethod: formData.paymentMethod,
           notes: formData.notes
         })
       })
 
-      const data = await response.json()
+      let data
+      try {
+        data = await response.json()
+      } catch (jsonError) {
+        console.error('Failed to parse JSON:', jsonError)
+        const text = await response.text()
+        try {
+          data = JSON.parse(text)
+        } catch (textError) {
+          console.error('Failed to parse text:', textError)
+          data = { error: 'Invalid response format' }
+        }
+      }
 
       if (response.ok) {
         setSuccess(true)
-        // Redirect ke dashboard setelah 2 detik
+        // Redirect ke invoice page
         setTimeout(() => {
-          router.push('/member-dashboard')
+          router.push(data.redirectTo || `/member-dashboard/invoice/${data.order.id}`)
         }, 2000)
       } else {
-        setError(data.error || 'Gagal membuat pesanan')
+        console.error('Order creation failed:', data)
+        setError(data.error || data.details || 'Gagal membuat pesanan')
       }
     } catch (error) {
       console.error('Failed to create order:', error)
-      setError('Terjadi kesalahan. Silakan coba lagi.')
+      setError(error instanceof Error ? error.message : 'Terjadi kesalahan. Silakan coba lagi.')
     } finally {
       setSubmitting(false)
     }
@@ -300,7 +329,7 @@ function OrderPageContent() {
           <Alert className="mb-6 bg-emerald-500/20 border-emerald-500/30 backdrop-blur-xl">
             <CheckCircle className="h-4 w-4 text-emerald-400" />
             <AlertDescription className="text-emerald-300">
-              Order created successfully! Redirecting to dashboard...
+              Order created successfully! Redirecting to invoice page...
             </AlertDescription>
           </Alert>
         )}

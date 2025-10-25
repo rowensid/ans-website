@@ -1,6 +1,35 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 
+export async function GET(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  try {
+    const { id } = await params
+    
+    // Get store item
+    const storeItem = await db.storeItem.findUnique({
+      where: { id }
+    })
+
+    if (!storeItem) {
+      return NextResponse.json(
+        { error: 'Store item not found' },
+        { status: 404 }
+      )
+    }
+
+    return NextResponse.json(storeItem)
+  } catch (error) {
+    console.error('Store GET error:', error)
+    return NextResponse.json(
+      { error: 'Failed to fetch store item' },
+      { status: 500 }
+    )
+  }
+}
+
 export async function PUT(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }

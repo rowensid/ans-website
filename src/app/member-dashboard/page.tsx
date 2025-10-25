@@ -188,14 +188,50 @@ export default function MemberDashboard() {
     }
   }
 
-  const handleLogout = () => {
-    localStorage.removeItem('auth_token')
-    localStorage.removeItem('user_data')
-    router.push('/login')
+  const handleLogout = async () => {
+    try {
+      const token = localStorage.getItem('auth_token')
+      if (token) {
+        await fetch('/api/auth/logout', {
+          headers: {
+            'Authorization': `Bearer ${token}`
+          }
+        })
+      }
+      localStorage.removeItem('auth_token')
+      localStorage.removeItem('user_data')
+      router.push('/gateway')
+    } catch (error) {
+      console.error('Logout error:', error)
+      localStorage.removeItem('auth_token')
+      localStorage.removeItem('user_data')
+      router.push('/gateway')
+    }
   }
 
   const handleSettings = () => {
     setEditProfileOpen(true)
+  }
+
+  const refreshUserData = async () => {
+    const token = localStorage.getItem('auth_token')
+    if (!token) return
+
+    try {
+      const response = await fetch('/api/user/profile', {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      })
+
+      if (response.ok) {
+        const userData = await response.json()
+        localStorage.setItem('user_data', JSON.stringify(userData.user))
+        setUser(userData.user)
+      }
+    } catch (error) {
+      console.error('Failed to refresh user data:', error)
+    }
   }
 
   const handleEditProfile = () => {
@@ -472,6 +508,7 @@ export default function MemberDashboard() {
                 user={user} 
                 onLogout={handleLogout}
                 onSettings={handleSettings}
+                onProfileUpdate={refreshUserData}
               />
             </div>
           </div>

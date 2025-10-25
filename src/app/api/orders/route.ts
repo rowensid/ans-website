@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 
+export const runtime = 'nodejs'
+
 export async function POST(request: NextRequest) {
   try {
     const token = request.headers.get('authorization')?.replace('Bearer ', '')
@@ -26,31 +28,44 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json()
-    const { serviceId, amount, paymentMethod, notes } = body
+    console.log('Order request body:', body)
+    
+    const { storeId, amount, paymentMethod, notes } = body
 
-    if (!serviceId || !amount || !paymentMethod) {
+    if (!storeId || !amount || !paymentMethod) {
+      console.log('Validation failed:', { storeId, amount, paymentMethod })
       return NextResponse.json(
-        { error: 'Service ID, amount, and payment method are required' },
+        { error: 'Store ID, amount, and payment method are required' },
         { status: 400 }
       )
     }
 
-    // Validate service exists and is active
-    const service = await db.storeItem.findUnique({
-      where: { id: serviceId }
+    // Validate store item exists and is active
+    const storeItem = await db.storeItem.findUnique({
+      where: { id: storeId }
     })
 
-    if (!service || !service.isActive) {
+    if (!storeItem) {
+      console.log('Store item not found:', storeId)
       return NextResponse.json(
-        { error: 'Service not found or inactive' },
+        { error: 'Store item not found' },
         { status: 404 }
       )
     }
 
-    // Validate amount matches service price
-    if (amount !== service.price) {
+    if (!storeItem.isActive) {
+      console.log('Store item inactive:', storeId)
       return NextResponse.json(
-        { error: 'Amount does not match service price' },
+        { error: 'Store item is inactive' },
+        { status: 404 }
+      )
+    }
+
+    // Validate amount matches store item price
+    if (amount !== storeItem.price) {
+      console.log('Amount mismatch:', { expected: storeItem.price, received: amount })
+      return NextResponse.json(
+        { error: 'Amount does not match store item price' },
         { status: 400 }
       )
     }
@@ -59,7 +74,7 @@ export async function POST(request: NextRequest) {
     const order = await db.order.create({
       data: {
         userId: session.userId,
-        serviceId,
+        storeId,
         amount,
         paymentMethod,
         status: 'PENDING'
@@ -67,27 +82,33 @@ export async function POST(request: NextRequest) {
     })
 
     // If this is a hosting/service type, create a service record
-    if (['HOSTING', 'SERVER'].includes(service.category)) {
-      await db.service.create({
-        data: {
-          userId: session.userId,
-          name: service.title,
-          type: service.category === 'HOSTING' ? 'RDP' : 'GAME_HOSTING',
-          status: 'PENDING',
-          price: amount,
-          description: service.description,
-          config: {
-            orderId: order.id,
-            storeItemId: serviceId,
-            notes: notes || '',
-            category: service.category
+    if (['HOSTING', 'SERVER'].includes(storeItem.category)) {
+      try {
+        await db.service.create({
+          data: {
+            userId: session.userId,
+            name: storeItem.title,
+            type: storeItem.category === 'HOSTING' ? 'RDP' : 'GAME_HOSTING',
+            status: 'PENDING',
+            price: amount,
+            description: storeItem.description,
+            config: {
+              orderId: order.id,
+              storeItemId: storeId,
+              notes: notes || '',
+              category: storeItem.category
+            }
           }
-        }
-      })
+        })
+      } catch (serviceError) {
+        console.error('Failed to create service record:', serviceError)
+        // Continue with order creation even if service record fails
+      }
     }
 
     return NextResponse.json({
       message: 'Order created successfully',
+      redirectTo: `/member-dashboard/invoice/${order.id}`,
       order: {
         id: order.id,
         amount: order.amount,
@@ -99,8 +120,15 @@ export async function POST(request: NextRequest) {
 
   } catch (error) {
     console.error('Failed to create order:', error)
+    console.error('Error details:', {
+      message: error instanceof Error ? error.message : 'Unknown error',
+      stack: error instanceof Error ? error.stack : undefined
+    })
     return NextResponse.json(
-      { error: 'Failed to create order' },
+      { 
+        error: 'Failed to create order',
+        details: error instanceof Error ? error.message : 'Unknown error'
+      },
       { status: 500 }
     )
   }
@@ -154,6 +182,13 @@ export async function GET(request: NextRequest) {
       skip,
       take: limit,
       include: {
+        storeItem: {
+          select: {
+            title: true,
+            category: true,
+            description: true
+          }
+        },
         service: {
           select: {
             name: true,
@@ -170,8 +205,8 @@ export async function GET(request: NextRequest) {
     // Format orders
     const formattedOrders = orders.map(order => ({
       id: order.id,
-      title: order.service?.name || 'Unknown Service',
-      type: order.service?.type || 'UNKNOWN',
+      title: order.storeItem?.title || order.service?.name || 'Unknown Service',
+      type: order.storeItem?.category || order.service?.type || 'UNKNOWN',
       amount: order.amount,
       status: order.status,
       paymentMethod: order.paymentMethod,

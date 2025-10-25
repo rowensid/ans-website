@@ -34,14 +34,15 @@ import {
   Key, KeyRound, Unlock, WifiOff, Battery, BatteryCharging, BatteryFull,
   Signal, Radar, Satellite, SatelliteDish,
   Telescope, Microscope, Dna,
-  Atom, Electron, Molecule,
-  FlameKindling, Fire, Campfire,
-  Snowflake, Icicle, Mountain,
+  Atom, Sparkle,
+  FlameKindling,
+  Snowflake, Mountain,
   TreePine, Leaf, Flower,
-  Waves, Water, Droplet,
-  Sparkle, ShootingStar,
-  Meteor, Comet, Galaxy,
-  Store as StoreIcon
+  Waves, Droplet,
+  ShootingStar,
+  Star,
+  Store as StoreIcon,
+  Trash2
 } from 'lucide-react'
 import Logo from '@/components/logo'
 import ProfileDropdown from '@/components/ProfileDropdown'
@@ -49,6 +50,8 @@ import { cn } from '@/lib/utils'
 import { formatRupiah } from '@/lib/currency'
 import UserManagement from '@/components/UserManagement'
 import StoreManagement from '@/components/StoreManagement'
+import OrderManagement from '@/components/OrderManagement'
+import PaymentSettings from '@/components/owner/PaymentSettings'
 
 export default function OwnerPanel() {
   const [user, setUser] = useState<any>(null)
@@ -143,6 +146,27 @@ export default function OwnerPanel() {
     console.log('Navigate to settings')
   }
 
+  const refreshUserData = async () => {
+    const token = localStorage.getItem('auth_token')
+    if (!token) return
+
+    try {
+      const response = await fetch('/api/auth/me', {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      })
+
+      if (response.ok) {
+        const userData = await response.json()
+        localStorage.setItem('user_data', JSON.stringify(userData.user))
+        setUser(userData.user)
+      }
+    } catch (error) {
+      console.error('Failed to refresh user data:', error)
+    }
+  }
+
   const handleLogout = async () => {
     try {
       const token = localStorage.getItem('auth_token')
@@ -155,12 +179,44 @@ export default function OwnerPanel() {
       }
       localStorage.removeItem('auth_token')
       localStorage.removeItem('user_data')
-      router.push('/login')
+      router.push('/gateway')
     } catch (error) {
       console.error('Logout error:', error)
       localStorage.removeItem('auth_token')
       localStorage.removeItem('user_data')
-      router.push('/login')
+      router.push('/gateway')
+    }
+  }
+
+  const handleResetOrders = async () => {
+    const confirmReset = window.confirm('⚠️ Apakah kamu yakin ingin menghapus SEMUA pesanan? Tindakan ini tidak bisa dibatalkan!')
+    if (!confirmReset) return
+
+    const doubleConfirm = window.confirm('🚨 Yakin banget? Semua data penjualan akan hilang selamanya!')
+    if (!doubleConfirm) return
+
+    try {
+      const token = localStorage.getItem('auth_token')
+      if (!token) return
+
+      const response = await fetch('/api/admin/reset-orders', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      })
+
+      if (response.ok) {
+        const data = await response.json()
+        alert(`✅ ${data.message}\n📊 ${data.deletedCount} pesanan dihapus\n⏰ ${new Date(data.timestamp).toLocaleString('id-ID')}`)
+        fetchStats() // Refresh stats
+      } else {
+        const error = await response.json()
+        alert(`❌ Gagal reset: ${error.error}`)
+      }
+    } catch (error) {
+      console.error('Failed to reset orders:', error)
+      alert('❌ Terjadi kesalahan saat reset pesanan')
     }
   }
 
@@ -308,7 +364,8 @@ export default function OwnerPanel() {
     { icon: UserPlus, label: 'Create User', color: 'from-violet-600 to-purple-600' },
     { icon: Server, label: 'Add Service', color: 'from-cyan-600 to-blue-600' },
     { icon: RefreshCw, label: 'Refresh Data', color: 'from-emerald-600 to-teal-600' },
-    { icon: Download, label: 'Export Report', color: 'from-amber-600 to-orange-600' }
+    { icon: Download, label: 'Export Report', color: 'from-amber-600 to-orange-600' },
+    { icon: Trash2, label: 'Reset Orders', color: 'from-rose-600 to-red-600', action: handleResetOrders, danger: true }
   ]
 
   const systemStatus = [
@@ -396,6 +453,7 @@ export default function OwnerPanel() {
                 user={user} 
                 onLogout={handleLogout}
                 onSettings={handleSettings}
+                onProfileUpdate={refreshUserData}
               />
             </div>
           </div>
@@ -534,9 +592,11 @@ export default function OwnerPanel() {
                         <Button
                           key={index}
                           variant="outline"
+                          onClick={action.action || undefined}
                           className={cn(
                             "w-full justify-start gap-3 bg-black/20 border-white/10 text-white hover:bg-white/10 transition-all duration-300",
-                            "hover:scale-105 hover:shadow-lg"
+                            "hover:scale-105 hover:shadow-lg",
+                            action.danger && "border-rose-500/30 hover:bg-rose-500/10 hover:border-rose-500/50"
                           )}
                         >
                           <div className={cn(
@@ -644,28 +704,7 @@ export default function OwnerPanel() {
               </div>
             )}
 
-            {activeTab === 'orders' && (
-              <div className="space-y-6">
-                <Card className="bg-black/40 backdrop-blur-2xl border-white/10 shadow-2xl">
-                  <CardHeader>
-                    <CardTitle className="text-white flex items-center gap-2">
-                      <ShoppingBag className="w-5 h-5 text-violet-400" />
-                      Order Management
-                    </CardTitle>
-                    <CardDescription className="text-purple-300">
-                      Manage orders and transactions
-                    </CardDescription>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="text-center py-12">
-                      <ShoppingBag className="w-16 h-16 text-purple-400 mx-auto mb-4" />
-                      <h3 className="text-xl font-semibold text-white mb-2">Order Management</h3>
-                      <p className="text-purple-300">Advanced order management features coming soon...</p>
-                    </div>
-                  </CardContent>
-                </Card>
-              </div>
-            )}
+            {activeTab === 'orders' && <OrderManagement />}
 
             {activeTab === 'servers' && (
               <div className="space-y-6">
@@ -691,26 +730,7 @@ export default function OwnerPanel() {
             )}
 
             {activeTab === 'settings' && (
-              <div className="space-y-6">
-                <Card className="bg-black/40 backdrop-blur-2xl border-white/10 shadow-2xl">
-                  <CardHeader>
-                    <CardTitle className="text-white flex items-center gap-2">
-                      <Settings className="w-5 h-5 text-violet-400" />
-                      System Settings
-                    </CardTitle>
-                    <CardDescription className="text-purple-300">
-                      Configure system settings and preferences
-                    </CardDescription>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="text-center py-12">
-                      <Settings className="w-16 h-16 text-purple-400 mx-auto mb-4" />
-                      <h3 className="text-xl font-semibold text-white mb-2">System Settings</h3>
-                      <p className="text-purple-300">Advanced settings management features coming soon...</p>
-                    </div>
-                  </CardContent>
-                </Card>
-              </div>
+              <PaymentSettings />
             )}
           </main>
         </div>

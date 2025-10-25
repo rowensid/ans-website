@@ -14,6 +14,7 @@ interface UserData {
   email: string
   role: string
   avatar?: string
+  balance?: number
   createdAt: string
   updatedAt: string
 }
@@ -55,12 +56,33 @@ export default function GatewayPage() {
   const handleLogout = () => {
     localStorage.removeItem('auth_token')
     localStorage.removeItem('user_data')
-    router.push('/login')
+    router.push('/gateway')
   }
 
   const handleSettings = () => {
     // TODO: Navigate to settings page
     console.log('Navigate to settings')
+  }
+
+  const refreshUserData = async () => {
+    const token = localStorage.getItem('auth_token')
+    if (!token) return
+
+    try {
+      const response = await fetch('/api/user/profile', {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      })
+
+      if (response.ok) {
+        const userData = await response.json()
+        localStorage.setItem('user_data', JSON.stringify(userData.user))
+        setUser(userData.user)
+      }
+    } catch (error) {
+      console.error('Failed to refresh user data:', error)
+    }
   }
 
   if (loading) {
@@ -95,6 +117,7 @@ export default function GatewayPage() {
                 user={user} 
                 onLogout={handleLogout}
                 onSettings={handleSettings}
+                onProfileUpdate={refreshUserData}
               />
             </div>
           </div>

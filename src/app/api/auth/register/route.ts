@@ -9,6 +9,21 @@ const registerSchema = z.object({
   password: z.string().min(6),
 })
 
+// Random avatar URLs
+const randomAvatars = [
+  'https://api.dicebear.com/7.x/avataaars/svg?seed=',
+  'https://api.dicebear.com/7.x/fun-emoji/svg?seed=',
+  'https://api.dicebear.com/7.x/bottts/svg?seed=',
+  'https://api.dicebear.com/7.x/pixel-art/svg?seed=',
+  'https://api.dicebear.com/7.x/lorelei/svg?seed=',
+]
+
+function getRandomAvatar() {
+  const avatarType = randomAvatars[Math.floor(Math.random() * randomAvatars.length)]
+  const randomSeed = Math.random().toString(36).substring(7)
+  return avatarType + randomSeed
+}
+
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
@@ -35,12 +50,14 @@ export async function POST(request: NextRequest) {
         email,
         name,
         password: hashedPassword,
+        avatar: getRandomAvatar(), // Auto assign random avatar
       },
       select: {
         id: true,
         email: true,
         name: true,
         role: true,
+        avatar: true,
         createdAt: true,
       }
     })
