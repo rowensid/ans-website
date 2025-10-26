@@ -8,6 +8,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Badge } from '@/components/ui/badge'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { ScrollArea } from '@/components/ui/scroll-area'
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { 
   User, 
   Store, 
@@ -92,6 +93,7 @@ interface Order {
   amount: number
   status: string
   paymentMethod: string
+  adminNotes?: string
   createdAt: string
   serviceStatus?: string
 }
@@ -120,6 +122,8 @@ export default function MemberDashboard() {
   const [mounted, setMounted] = useState(false)
   const [editProfileOpen, setEditProfileOpen] = useState(false)
   const [changePasswordOpen, setChangePasswordOpen] = useState(false)
+  const [selectedOrder, setSelectedOrder] = useState<Order | null>(null)
+  const [showOrderDetails, setShowOrderDetails] = useState(false)
 
   useEffect(() => {
     setMounted(true)
@@ -250,6 +254,11 @@ export default function MemberDashboard() {
 
   const handlePurchaseItem = (item: StoreItem) => {
     router.push(`/member-dashboard/order?serviceId=${item.id}`)
+  }
+
+  const handleViewOrderDetails = (order: Order) => {
+    setSelectedOrder(order)
+    setShowOrderDetails(true)
   }
 
   const getStatusColor = (status: string) => {
@@ -625,7 +634,14 @@ export default function MemberDashboard() {
                         <div className="space-y-4">
                           {recentOrders.length > 0 ? (
                             recentOrders.map((order) => (
-                              <div key={order.id} className="flex items-center justify-between p-4 bg-slate-700/30 rounded-lg hover:bg-slate-700/50 transition-colors">
+                              <div 
+                                key={order.id} 
+                                className={cn(
+                                  "flex items-center justify-between p-4 bg-slate-700/30 rounded-lg transition-colors",
+                                  order.status === 'COMPLETED' ? "hover:bg-slate-700/50 cursor-pointer" : ""
+                                )}
+                                onClick={() => order.status === 'COMPLETED' && handleViewOrderDetails(order)}
+                              >
                                 <div className="flex items-center space-x-3">
                                   <div className="w-10 h-10 bg-violet-500/20 rounded-lg flex items-center justify-center">
                                     {getCategoryIcon(order.type)}
@@ -641,6 +657,9 @@ export default function MemberDashboard() {
                                     {getStatusIcon(order.status)}
                                     <span className="ml-1">{order.status}</span>
                                   </Badge>
+                                  {order.status === 'COMPLETED' && order.adminNotes && (
+                                    <p className="text-xs text-emerald-400 mt-1">Has notes</p>
+                                  )}
                                 </div>
                               </div>
                             ))
@@ -789,7 +808,14 @@ export default function MemberDashboard() {
                     <div className="space-y-4">
                       {recentOrders.length > 0 ? (
                         recentOrders.map((order) => (
-                          <div key={order.id} className="flex items-center justify-between p-6 bg-slate-700/30 rounded-lg hover:bg-slate-700/50 transition-colors">
+                          <div 
+                            key={order.id} 
+                            className={cn(
+                              "flex items-center justify-between p-6 bg-slate-700/30 rounded-lg transition-colors",
+                              order.status === 'COMPLETED' ? "hover:bg-slate-700/50 cursor-pointer" : ""
+                            )}
+                            onClick={() => order.status === 'COMPLETED' && handleViewOrderDetails(order)}
+                          >
                             <div className="flex items-center space-x-4">
                               <div className="w-12 h-12 bg-violet-500/20 rounded-lg flex items-center justify-center">
                                 {getCategoryIcon(order.type)}
@@ -798,6 +824,9 @@ export default function MemberDashboard() {
                                 <p className="text-white font-medium text-lg">{order.title}</p>
                                 <p className="text-slate-400">{formatDate(order.createdAt)}</p>
                                 <p className="text-slate-500 text-sm">Payment: {order.paymentMethod}</p>
+                                {order.status === 'COMPLETED' && order.adminNotes && (
+                                  <p className="text-emerald-400 text-sm mt-1">📝 Click to view notes</p>
+                                )}
                               </div>
                             </div>
                             <div className="text-right">
@@ -1168,6 +1197,73 @@ export default function MemberDashboard() {
             isOpen={changePasswordOpen}
             onClose={() => setChangePasswordOpen(false)}
           />
+          
+          {/* Order Details Dialog */}
+          <Dialog open={showOrderDetails} onOpenChange={setShowOrderDetails}>
+            <DialogContent className="bg-slate-900/90 backdrop-blur-2xl border border-slate-700/50 shadow-2xl shadow-black/50 max-w-md">
+              <DialogHeader>
+                <DialogTitle className="text-white text-xl font-bold bg-gradient-to-r from-emerald-400 to-teal-400 bg-clip-text text-transparent">
+                  Order Details
+                </DialogTitle>
+              </DialogHeader>
+              
+              {selectedOrder && (
+                <div className="space-y-4 py-4">
+                  <div className="bg-slate-800/50 rounded-lg p-4 space-y-3">
+                    <div className="flex items-center justify-between">
+                      <span className="text-slate-400 text-sm">Service:</span>
+                      <span className="text-white font-medium">{selectedOrder.title}</span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-slate-400 text-sm">Type:</span>
+                      <span className="text-white font-medium">{selectedOrder.type}</span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-slate-400 text-sm">Amount:</span>
+                      <span className="text-white font-medium">{formatCurrency(selectedOrder.amount)}</span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-slate-400 text-sm">Payment Method:</span>
+                      <span className="text-white font-medium">{selectedOrder.paymentMethod}</span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-slate-400 text-sm">Date:</span>
+                      <span className="text-white font-medium">{formatDate(selectedOrder.createdAt)}</span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-slate-400 text-sm">Status:</span>
+                      <Badge className={getStatusColor(selectedOrder.status)}>
+                        {getStatusIcon(selectedOrder.status)}
+                        <span className="ml-1">{selectedOrder.status}</span>
+                      </Badge>
+                    </div>
+                  </div>
+
+                  {selectedOrder.adminNotes && (
+                    <div className="bg-emerald-500/10 border border-emerald-500/30 rounded-lg p-4">
+                      <div className="flex items-center gap-2 mb-2">
+                        <div className="w-2 h-2 bg-emerald-500 rounded-full"></div>
+                        <h4 className="text-emerald-400 font-medium">Admin Notes</h4>
+                      </div>
+                      <p className="text-white text-sm leading-relaxed whitespace-pre-wrap">
+                        {selectedOrder.adminNotes}
+                      </p>
+                    </div>
+                  )}
+
+                  <div className="flex justify-end pt-2">
+                    <Button
+                      variant="outline"
+                      onClick={() => setShowOrderDetails(false)}
+                      className="border-slate-600 text-slate-300 hover:bg-slate-800 hover:text-white"
+                    >
+                      Close
+                    </Button>
+                  </div>
+                </div>
+              )}
+            </DialogContent>
+          </Dialog>
         </>
       )}
     </div>

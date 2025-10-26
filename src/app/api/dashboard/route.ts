@@ -78,6 +78,12 @@ export async function GET(request: NextRequest) {
               type: true,
               status: true
             }
+          },
+          storeItem: {
+            select: {
+              title: true,
+              category: true
+            }
           }
         }
       }),
@@ -102,16 +108,24 @@ export async function GET(request: NextRequest) {
     }
 
     // Format recent orders
-    const formattedRecentOrders = recentOrders.map(order => ({
-      id: order.id,
-      title: order.service?.name || 'Unknown Service',
-      type: order.service?.type || 'UNKNOWN',
-      amount: order.amount,
-      status: order.status,
-      paymentMethod: order.paymentMethod,
-      createdAt: order.createdAt.toISOString(),
-      serviceStatus: order.service?.status || null
-    }))
+    const formattedRecentOrders = recentOrders.map(order => {
+      // Use service name if available, otherwise use store item title
+      const title = order.service?.name || order.storeItem?.title || 'Unknown Service'
+      // Use service type if available, otherwise use store item category, otherwise default to UNKNOWN
+      const type = order.service?.type || order.storeItem?.category || 'UNKNOWN'
+      
+      return {
+        id: order.id,
+        title,
+        type,
+        amount: order.amount,
+        status: order.status,
+        paymentMethod: order.paymentMethod,
+        adminNotes: order.adminNotes,
+        createdAt: order.createdAt.toISOString(),
+        serviceStatus: order.service?.status || null
+      }
+    })
 
     return NextResponse.json({
       stats,

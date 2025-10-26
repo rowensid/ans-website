@@ -7,7 +7,7 @@ import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { ManageOrderModal } from '@/components/admin/ManageOrderModal'
 import { 
   ShoppingCart, 
   Search, Filter, ChevronLeft, ChevronRight, Eye, 
@@ -30,6 +30,7 @@ interface Order {
   amount: number
   status: 'PENDING' | 'COMPLETED' | 'CANCELLED' | 'REFUNDED'
   paymentMethod: string
+  adminNotes?: string
   createdAt: string
   updatedAt: string
   serviceStatus?: string
@@ -59,10 +60,8 @@ export default function OrderManagement() {
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState('all')
   const [userFilter, setUserFilter] = useState('')
-  const [showUpdateDialog, setShowUpdateDialog] = useState(false)
+  const [showManageDialog, setShowManageDialog] = useState(false)
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null)
-  const [updateStatus, setUpdateStatus] = useState('')
-  const [updating, setUpdating] = useState(false)
   const [showResetDialog, setShowResetDialog] = useState(false)
   const [resetting, setResetting] = useState(false)
 
@@ -102,47 +101,35 @@ export default function OrderManagement() {
     fetchOrders()
   }, [pagination.page, statusFilter, userFilter])
 
-  const handleUpdateStatus = async () => {
-    if (!selectedOrder || !updateStatus) return
-
-    setUpdating(true)
+  const handleManageOrder = async (orderId: string, data: { status?: string; adminNotes?: string }) => {
     try {
       const token = getToken()
       if (!token) return
 
-      const response = await fetch('/api/admin/orders', {
+      const response = await fetch(`/api/admin/orders/${orderId}`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${token}`
         },
-        body: JSON.stringify({
-          orderId: selectedOrder.id,
-          status: updateStatus
-        })
+        body: JSON.stringify(data)
       })
 
       if (response.ok) {
-        setShowUpdateDialog(false)
-        setSelectedOrder(null)
-        setUpdateStatus('')
         fetchOrders()
       } else {
         const error = await response.json()
-        alert(error.error || 'Failed to update order status')
+        alert(error.error || 'Failed to update order')
       }
     } catch (error) {
-      console.error('Failed to update order status:', error)
-      alert('Failed to update order status')
-    } finally {
-      setUpdating(false)
+      console.error('Failed to update order:', error)
+      alert('Failed to update order')
     }
   }
 
-  const openUpdateDialog = (order: Order) => {
+  const openManageDialog = (order: Order) => {
     setSelectedOrder(order)
-    setUpdateStatus(order.status)
-    setShowUpdateDialog(true)
+    setShowManageDialog(true)
   }
 
   const handleResetOrders = async () => {
@@ -415,10 +402,10 @@ export default function OrderManagement() {
                       <Button
                         size="sm"
                         variant="outline"
-                        onClick={() => openUpdateDialog(order)}
+                        onClick={() => openManageDialog(order)}
                         className="border-pink-500/30 text-pink-400 hover:bg-pink-500/20 hover:text-pink-300"
                       >
-                        Update Status
+                        Manage Order
                       </Button>
                     </td>
                   </tr>
@@ -461,70 +448,13 @@ export default function OrderManagement() {
         </CardContent>
       </Card>
 
-      {/* Update Status Dialog */}
-      <Dialog open={showUpdateDialog} onOpenChange={setShowUpdateDialog}>
-        <DialogContent className="bg-gray-900/90 backdrop-blur-2xl border border-pink-500/30 shadow-2xl shadow-black/50 max-w-md">
-          <DialogHeader>
-            <DialogTitle className="text-white text-xl font-bold bg-gradient-to-r from-pink-400 to-rose-400 bg-clip-text text-transparent">
-              Update Order Status
-            </DialogTitle>
-            <DialogDescription className="text-purple-300">
-              Change the status for order: {selectedOrder?.id?.slice(0, 8)}...
-            </DialogDescription>
-          </DialogHeader>
-          
-          <div className="space-y-4 py-4">
-            <div className="space-y-2">
-              <Label className="text-white font-medium text-sm">New Status</Label>
-              <Select value={updateStatus} onValueChange={setUpdateStatus}>
-                <SelectTrigger className="bg-black/40 border-pink-500/30 text-white focus:border-pink-500/50 focus:ring-2 focus:ring-pink-500/20">
-                  <SelectValue placeholder="Select new status" />
-                </SelectTrigger>
-                <SelectContent className="bg-gray-900 border-pink-500/30">
-                  <SelectItem value="PENDING" className="text-white hover:bg-pink-500/20">⏳ Pending</SelectItem>
-                  <SelectItem value="COMPLETED" className="text-white hover:bg-pink-500/20">✅ Completed</SelectItem>
-                  <SelectItem value="CANCELLED" className="text-white hover:bg-pink-500/20">❌ Cancelled</SelectItem>
-                  <SelectItem value="REFUNDED" className="text-white hover:bg-pink-500/20">💰 Refunded</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-
-            {selectedOrder && (
-              <div className="bg-black/20 rounded-lg p-3 space-y-2">
-                <div className="flex items-center justify-between">
-                  <span className="text-gray-400 text-sm">Service:</span>
-                  <span className="text-white text-sm">{selectedOrder.title}</span>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-gray-400 text-sm">User:</span>
-                  <span className="text-white text-sm">{selectedOrder.user.name}</span>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-gray-400 text-sm">Amount:</span>
-                  <span className="text-white text-sm">{showUSD ? formatUSD(selectedOrder.amount) : formatRupiah(selectedOrder.amount)}</span>
-                </div>
-              </div>
-            )}
-          </div>
-
-          <DialogFooter>
-            <Button
-              variant="outline"
-              onClick={() => setShowUpdateDialog(false)}
-              className="border-pink-500/30 text-pink-400 hover:bg-pink-500/20"
-            >
-              Cancel
-            </Button>
-            <Button
-              onClick={handleUpdateStatus}
-              disabled={updating || !updateStatus}
-              className="bg-gradient-to-r from-pink-600 to-rose-600 hover:from-pink-700 hover:to-rose-700 disabled:opacity-50"
-            >
-              {updating ? 'Updating...' : 'Update Status'}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      {/* Manage Order Modal */}
+      <ManageOrderModal
+        order={selectedOrder}
+        isOpen={showManageDialog}
+        onClose={() => setShowManageDialog(false)}
+        onUpdate={handleManageOrder}
+      />
     </div>
   )
 }
