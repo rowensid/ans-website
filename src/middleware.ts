@@ -38,7 +38,7 @@ export async function middleware(request: NextRequest) {
   }
 
   // Get token from cookies for all protected and gateway routes
-  const token = request.cookies.get('auth-token')?.value;
+  const token = request.cookies.get('auth_token')?.value;
 
   // Handle gateway routes - need authentication but redirect to login if not authenticated
   if (gatewayRoutes.some(route => pathname.startsWith(route))) {

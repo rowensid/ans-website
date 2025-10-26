@@ -16,6 +16,7 @@ import {
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { formatRupiah, formatUSD } from '@/lib/currency'
+import ApiClient from '@/lib/api-client'
 
 interface Order {
   id: string
@@ -69,9 +70,6 @@ export default function OrderManagement() {
 
   const fetchOrders = async () => {
     try {
-      const token = getToken()
-      if (!token) return
-
       const params = new URLSearchParams({
         page: pagination.page.toString(),
         limit: pagination.limit.toString(),
@@ -79,11 +77,7 @@ export default function OrderManagement() {
         userId: userFilter
       })
 
-      const response = await fetch(`/api/admin/orders?${params}`, {
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
-      })
+      const response = await ApiClient.get(`/api/admin/orders?${params}`)
 
       if (response.ok) {
         const data: OrdersResponse = await response.json()
@@ -103,17 +97,7 @@ export default function OrderManagement() {
 
   const handleManageOrder = async (orderId: string, data: { status?: string; adminNotes?: string }) => {
     try {
-      const token = getToken()
-      if (!token) return
-
-      const response = await fetch(`/api/admin/orders/${orderId}`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
-        body: JSON.stringify(data)
-      })
+      const response = await ApiClient.put(`/api/admin/orders/${orderId}`, data)
 
       if (response.ok) {
         fetchOrders()
@@ -135,16 +119,8 @@ export default function OrderManagement() {
   const handleResetOrders = async () => {
     setResetting(true)
     try {
-      const token = getToken()
-      if (!token) return
-
       // Use direct database deletion via a simple API call
-      const response = await fetch('/api/orders/reset', {
-        method: 'DELETE',
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
-      })
+      const response = await ApiClient.delete('/api/orders/reset')
 
       if (response.ok) {
         const data = await response.json()
