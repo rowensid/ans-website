@@ -13,22 +13,18 @@ export async function PUT(
   { params }: { params: { id: string } }
 ) {
   try {
-    const token = request.headers.get('authorization')?.replace('Bearer ', '')
+    const sessionToken = request.cookies.get('session-token')?.value;
     
-    if (!token) {
+    if (!sessionToken) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
     const session = await db.session.findUnique({
-      where: { token },
+      where: { token: sessionToken },
       include: { user: true }
     });
 
-    if (!session || session.expiresAt < new Date()) {
-      return NextResponse.json({ error: 'Invalid or expired token' }, { status: 401 });
-    }
-
-    if (!['ADMIN', 'OWNER'].includes(session.user.role)) {
+    if (!session || session.user.role !== 'ADMIN' && session.user.role !== 'OWNER') {
       return NextResponse.json({ error: 'Insufficient permissions' }, { status: 403 });
     }
 
