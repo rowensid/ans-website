@@ -12,7 +12,9 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { 
   Users, Plus, Edit, Trash2, Search, Filter, Eye, EyeOff, 
   ChevronLeft, ChevronRight, Crown, Shield, User, Mail, Calendar,
-  Activity, ShoppingBag, Server, ToggleLeft, ToggleRight
+  Activity, ShoppingBag, Server, ToggleLeft, ToggleRight,
+  Wallet, ArrowDownCircle, ArrowUpCircle, DollarSign, TrendingUp,
+  CreditCard, PiggyBank, HandCoins, Receipt, BanknoteIcon
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
@@ -26,6 +28,7 @@ interface User {
   lastLoginAt: string | null
   createdAt: string
   updatedAt: string
+  balance: number // Add balance field
   _count: {
     orders: number
     services: number
@@ -59,6 +62,13 @@ export default function UserManagement() {
   const [selectedUser, setSelectedUser] = useState<User | null>(null)
   const [showPassword, setShowPassword] = useState(false)
   const [showEditPassword, setShowEditPassword] = useState(false)
+  
+  // Balance management states
+  const [showBalanceDialog, setShowBalanceDialog] = useState(false)
+  const [showWithdrawDialog, setShowWithdrawDialog] = useState(false)
+  const [withdrawAmount, setWithdrawAmount] = useState('')
+  const [withdrawReason, setWithdrawReason] = useState('')
+  const [updatingBalance, setUpdatingBalance] = useState(false)
 
   // Form states
   const [formData, setFormData] = useState({
@@ -269,6 +279,79 @@ export default function UserManagement() {
     }
   }
 
+  // Balance management functions
+  const openBalanceDialog = (user: User) => {
+    setSelectedUser(user)
+    setShowBalanceDialog(true)
+  }
+
+  const openWithdrawDialog = (user: User) => {
+    setSelectedUser(user)
+    setWithdrawAmount('')
+    setWithdrawReason('')
+    setShowWithdrawDialog(true)
+  }
+
+  const handleWithdrawBalance = async () => {
+    if (!selectedUser || !withdrawAmount) return
+
+    const amount = parseFloat(withdrawAmount)
+    if (isNaN(amount) || amount <= 0) {
+      alert('Please enter a valid amount')
+      return
+    }
+
+    if (amount > selectedUser.balance) {
+      alert('Insufficient balance')
+      return
+    }
+
+    setUpdatingBalance(true)
+    try {
+      const token = getToken()
+      if (!token) return
+
+      const response = await fetch(`/api/users/${selectedUser.id}/balance`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          action: 'withdraw',
+          amount,
+          reason: withdrawReason || 'Balance withdrawal by admin'
+        })
+      })
+
+      if (response.ok) {
+        const data = await response.json()
+        setShowWithdrawDialog(false)
+        setSelectedUser(null)
+        setWithdrawAmount('')
+        setWithdrawReason('')
+        fetchUsers()
+        alert(`✅ Successfully withdrew ${formatRupiah(amount)} from ${selectedUser.name || selectedUser.email}\n💳 New balance: ${formatRupiah(data.newBalance)}`)
+      } else {
+        const error = await response.json()
+        alert(error.error || 'Failed to withdraw balance')
+      }
+    } catch (error) {
+      console.error('Failed to withdraw balance:', error)
+      alert('Failed to withdraw balance')
+    } finally {
+      setUpdatingBalance(false)
+    }
+  }
+
+  const formatRupiah = (amount: number) => {
+    return new Intl.NumberFormat('id-ID', {
+      style: 'currency',
+      currency: 'IDR',
+      minimumFractionDigits: 0
+    }).format(amount)
+  }
+
   if (loading) {
     return (
       <div className="flex items-center justify-center py-12">
@@ -432,6 +515,7 @@ export default function UserManagement() {
                 <tr className="border-b border-white/10">
                   <th className="text-left p-4 text-sm font-medium text-purple-300">User</th>
                   <th className="text-left p-4 text-sm font-medium text-purple-300">Role</th>
+                  <th className="text-left p-4 text-sm font-medium text-purple-300">Balance</th>
                   <th className="text-left p-4 text-sm font-medium text-purple-300">Status</th>
                   <th className="text-left p-4 text-sm font-medium text-purple-300">Orders</th>
                   <th className="text-left p-4 text-sm font-medium text-purple-300">Services</th>
@@ -463,6 +547,15 @@ export default function UserManagement() {
                       )}>
                         {user.role}
                       </Badge>
+                    </td>
+                    <td className="p-4">
+                      <div className="flex items-center gap-2">
+                        <Wallet className="w-4 h-4 text-emerald-400" />
+                        <div>
+                          <p className="text-white font-medium">{formatRupiah(user.balance)}</p>
+                          <p className="text-xs text-purple-300">Available</p>
+                        </div>
+                      </div>
                     </td>
                     <td className="p-4">
                       <Button
@@ -508,8 +601,28 @@ export default function UserManagement() {
                         <Button
                           variant="ghost"
                           size="sm"
+                          onClick={() => openBalanceDialog(user)}
+                          className="text-emerald-400 hover:text-emerald-300 hover:bg-emerald-500/10 border border-emerald-500/20 hover:border-emerald-500/40 transition-all duration-200"
+                          title="View Balance Details"
+                        >
+                          <Wallet className="w-4 h-4" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => openWithdrawDialog(user)}
+                          className="text-amber-400 hover:text-amber-300 hover:bg-amber-500/10 border border-amber-500/20 hover:border-amber-500/40 transition-all duration-200"
+                          title="Withdraw Balance"
+                          disabled={user.balance <= 0}
+                        >
+                          <ArrowDownCircle className="w-4 h-4" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
                           onClick={() => openEditDialog(user)}
                           className="text-cyan-400 hover:text-cyan-300 hover:bg-cyan-500/10 border border-cyan-500/20 hover:border-cyan-500/40 transition-all duration-200"
+                          title="Edit User"
                         >
                           <Edit className="w-4 h-4" />
                         </Button>
@@ -519,6 +632,7 @@ export default function UserManagement() {
                               variant="ghost"
                               size="sm"
                               className="text-red-400 hover:text-red-300 hover:bg-red-500/10 border border-red-500/20 hover:border-red-500/40 transition-all duration-200"
+                              title="Delete User"
                             >
                               <Trash2 className="w-4 h-4" />
                             </Button>
@@ -668,6 +782,147 @@ export default function UserManagement() {
               className="bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-700 hover:to-blue-700 text-white shadow-lg shadow-cyan-500/25 transition-all duration-200 hover:shadow-cyan-500/40"
             >
               Update User
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Balance Details Dialog */}
+      <Dialog open={showBalanceDialog} onOpenChange={setShowBalanceDialog}>
+        <DialogContent className="bg-gray-900/90 backdrop-blur-2xl border border-emerald-500/30 shadow-2xl shadow-black/50 max-w-2xl">
+          <DialogHeader>
+            <DialogTitle className="text-white text-xl font-bold bg-gradient-to-r from-emerald-400 to-teal-400 bg-clip-text text-transparent flex items-center gap-2">
+              <Wallet className="w-5 h-5" />
+              Balance Details - {selectedUser?.name || selectedUser?.email}
+            </DialogTitle>
+            <DialogDescription className="text-purple-300">
+              View user's current balance and transaction history
+            </DialogDescription>
+          </DialogHeader>
+          {selectedUser && (
+            <div className="space-y-6">
+              {/* Current Balance Card */}
+              <div className="bg-gradient-to-r from-emerald-600/20 to-teal-600/20 border border-emerald-500/30 rounded-xl p-6">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-emerald-300 text-sm mb-1">Current Balance</p>
+                    <p className="text-3xl font-bold text-white">{formatRupiah(selectedUser.balance)}</p>
+                    <p className="text-emerald-300 text-xs mt-1">Available for withdrawal</p>
+                  </div>
+                  <div className="w-16 h-16 bg-gradient-to-r from-emerald-600 to-teal-600 rounded-full flex items-center justify-center">
+                    <PiggyBank className="w-8 h-8 text-white" />
+                  </div>
+                </div>
+              </div>
+
+              {/* Quick Actions */}
+              <div className="flex gap-3">
+                <Button
+                  onClick={() => {
+                    setShowBalanceDialog(false)
+                    openWithdrawDialog(selectedUser)
+                  }}
+                  className="flex-1 bg-gradient-to-r from-amber-600 to-orange-600 hover:from-amber-700 hover:to-orange-700 text-white shadow-lg shadow-amber-500/25 transition-all duration-200"
+                  disabled={selectedUser.balance <= 0}
+                >
+                  <ArrowDownCircle className="w-4 h-4 mr-2" />
+                  Withdraw Balance
+                </Button>
+              </div>
+            </div>
+          )}
+          <DialogFooter className="gap-3">
+            <Button 
+              onClick={() => setShowBalanceDialog(false)}
+              className="bg-white/10 border-emerald-500/30 text-white hover:bg-white/20 transition-all duration-200"
+            >
+              Close
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Withdraw Balance Dialog */}
+      <Dialog open={showWithdrawDialog} onOpenChange={setShowWithdrawDialog}>
+        <DialogContent className="bg-gray-900/90 backdrop-blur-2xl border border-amber-500/30 shadow-2xl shadow-black/50">
+          <DialogHeader>
+            <DialogTitle className="text-white text-xl font-bold bg-gradient-to-r from-amber-400 to-orange-400 bg-clip-text text-transparent flex items-center gap-2">
+              <ArrowDownCircle className="w-5 h-5" />
+              Withdraw Balance - {selectedUser?.name || selectedUser?.email}
+            </DialogTitle>
+            <DialogDescription className="text-purple-300">
+              Withdraw balance from user's wallet
+            </DialogDescription>
+          </DialogHeader>
+          {selectedUser && (
+            <div className="space-y-4">
+              {/* Current Balance Display */}
+              <div className="bg-amber-600/10 border border-amber-500/30 rounded-lg p-4">
+                <div className="flex items-center justify-between">
+                  <span className="text-amber-300 text-sm">Available Balance</span>
+                  <span className="text-white font-bold">{formatRupiah(selectedUser.balance)}</span>
+                </div>
+              </div>
+
+              {/* Withdraw Amount */}
+              <div>
+                <Label htmlFor="withdrawAmount" className="text-white font-medium">Withdraw Amount</Label>
+                <Input
+                  id="withdrawAmount"
+                  type="number"
+                  value={withdrawAmount}
+                  onChange={(e) => setWithdrawAmount(e.target.value)}
+                  className="bg-black/40 border-amber-500/30 text-white placeholder-gray-400 focus:border-amber-500/50 focus:ring-2 focus:ring-amber-500/20 transition-all duration-200"
+                  placeholder="Enter amount to withdraw"
+                  min="0"
+                  max={selectedUser.balance}
+                />
+              </div>
+
+              {/* Reason */}
+              <div>
+                <Label htmlFor="withdrawReason" className="text-white font-medium">Reason (Optional)</Label>
+                <textarea
+                  id="withdrawReason"
+                  value={withdrawReason}
+                  onChange={(e) => setWithdrawReason(e.target.value)}
+                  className="w-full bg-black/40 border-amber-500/30 text-white placeholder-gray-400 focus:border-amber-500/50 focus:ring-2 focus:ring-amber-500/20 transition-all duration-200 rounded-md p-3 min-h-[80px] resize-none"
+                  placeholder="Enter reason for withdrawal..."
+                />
+              </div>
+
+              {/* Warning */}
+              {withdrawAmount && parseFloat(withdrawAmount) > selectedUser.balance && (
+                <div className="bg-red-600/10 border border-red-500/30 rounded-lg p-3">
+                  <p className="text-red-400 text-sm">⚠️ Insufficient balance</p>
+                </div>
+              )}
+            </div>
+          )}
+          <DialogFooter className="gap-3">
+            <Button 
+              variant="outline" 
+              onClick={() => setShowWithdrawDialog(false)}
+              className="bg-white/10 border-amber-500/30 text-white hover:bg-white/20 transition-all duration-200"
+            >
+              Cancel
+            </Button>
+            <Button 
+              onClick={handleWithdrawBalance}
+              disabled={!withdrawAmount || parseFloat(withdrawAmount) <= 0 || parseFloat(withdrawAmount) > (selectedUser?.balance || 0) || updatingBalance}
+              className="bg-gradient-to-r from-amber-600 to-orange-600 hover:from-amber-700 hover:to-orange-700 text-white shadow-lg shadow-amber-500/25 transition-all duration-200 hover:shadow-amber-500/40"
+            >
+              {updatingBalance ? (
+                <>
+                  <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin mr-2" />
+                  Processing...
+                </>
+              ) : (
+                <>
+                  <HandCoins className="w-4 h-4 mr-2" />
+                  Withdraw {withdrawAmount ? formatRupiah(parseFloat(withdrawAmount)) : ''}
+                </>
+              )}
             </Button>
           </DialogFooter>
         </DialogContent>

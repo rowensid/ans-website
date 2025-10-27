@@ -21,7 +21,8 @@ import {
   Loader2,
   ShoppingCart,
   Server,
-  Gamepad2
+  Gamepad2,
+  Download
 } from 'lucide-react'
 import Logo from '@/components/logo'
 import ProfileDropdown from '@/components/ProfileDropdown'
@@ -32,6 +33,7 @@ interface UserData {
   email: string
   role: string
   avatar?: string
+  balance: number
   createdAt: string
   updatedAt: string
 }
@@ -60,11 +62,13 @@ function OrderPageContent() {
   const [submitting, setSubmitting] = useState(false)
   const [storeItem, setStoreItem] = useState<StoreItem | null>(null)
   const [formData, setFormData] = useState({
-    paymentMethod: '',
     notes: ''
   })
   const [error, setError] = useState('')
   const [success, setSuccess] = useState(false)
+  const [createdOrder, setCreatedOrder] = useState<any>(null)
+  const [downloadSuccess, setDownloadSuccess] = useState(false)
+  const [downloadingInvoice, setDownloadingInvoice] = useState(false)
 
   useEffect(() => {
     const token = localStorage.getItem('auth_token')
@@ -139,19 +143,126 @@ function OrderPageContent() {
     console.log('Navigate to settings')
   }
 
+  const refreshUserData = async () => {
+    const token = localStorage.getItem('auth_token')
+    if (!token) return
+
+    try {
+      const response = await fetch('/api/user/profile', {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      })
+
+      if (response.ok) {
+        const userData = await response.json()
+        localStorage.setItem('user_data', JSON.stringify(userData.user))
+        setUser(userData.user)
+      }
+    } catch (error) {
+      console.error('Failed to refresh user data:', error)
+    }
+  }
+
+  const handleDownloadInvoice = async (orderId: string) => {
+    try {
+      setDownloadingInvoice(true)
+      setError('')
+      
+      const token = localStorage.getItem('auth_token')
+      if (!token) {
+        setError('Token tidak ditemukan. Silakan login kembali.')
+        return
+      }
+
+      console.log('Starting invoice download for order:', orderId)
+      
+      const response = await fetch(`/api/orders/${orderId}/invoice`, {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      })
+
+      console.log('Response status:', response.status)
+      console.log('Response headers:', response.headers)
+
+      if (response.ok) {
+        const contentType = response.headers.get('content-type')
+        console.log('Content-Type:', contentType)
+        
+        if (contentType && contentType.includes('application/pdf')) {
+          const blob = await response.blob()
+          console.log('Blob size:', blob.size, 'bytes')
+          
+          if (blob.size === 0) {
+            setError('PDF file is empty. Please try again.')
+            return
+          }
+          
+          // Try to download using blob URL
+          if (window.URL && window.URL.createObjectURL) {
+            const url = window.URL.createObjectURL(blob)
+            const a = document.createElement('a')
+            a.href = url
+            a.download = `invoice-${orderId}.pdf`
+            a.style.display = 'none'
+            document.body.appendChild(a)
+            a.click()
+            
+            // Cleanup
+            setTimeout(() => {
+              document.body.removeChild(a)
+              window.URL.revokeObjectURL(url)
+            }, 100)
+            
+            console.log('Download initiated successfully')
+          } else {
+            // Fallback for older browsers
+            if (window.navigator && window.navigator.msSaveBlob) {
+              // For IE
+              window.navigator.msSaveBlob(blob, `invoice-${orderId}.pdf`)
+            } else {
+              // Open in new tab as fallback
+              const fileURL = URL.createObjectURL(blob)
+              window.open(fileURL, '_blank')
+            }
+          }
+          
+          // Show success message
+          setDownloadSuccess(true)
+          setTimeout(() => setDownloadSuccess(false), 3000)
+        } else {
+          const text = await response.text()
+          console.error('Response is not PDF:', text)
+          setError('Server returned non-PDF response. Please try again.')
+        }
+      } else {
+        const errorData = await response.json().catch(() => ({}))
+        console.error('Failed to download invoice:', errorData)
+        setError(errorData.error || `Gagal download invoice (${response.status})`)
+      }
+    } catch (error) {
+      console.error('Error downloading invoice:', error)
+      setError('Terjadi kesalahan saat download invoice. Silakan coba lagi.')
+    } finally {
+      setDownloadingInvoice(false)
+    }
+  }
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setError('')
     setSubmitting(true)
 
-    if (!formData.paymentMethod) {
-      setError('Metode pembayaran harus dipilih')
+    if (!storeItem) {
+      setError('Item tidak valid')
       setSubmitting(false)
       return
     }
 
-    if (!storeItem) {
-      setError('Item tidak valid')
+    // Check wallet balance
+    if (user.balance < storeItem.price) {
+      setError(`Saldo wallet tidak mencukupi. Diperlukan ${formatCurrency(storeItem.price)}, saldo Anda ${formatCurrency(user.balance)}`)
       setSubmitting(false)
       return
     }
@@ -168,7 +279,7 @@ function OrderPageContent() {
         body: JSON.stringify({
           storeId: storeItem.id,
           amount: storeItem.price,
-          paymentMethod: formData.paymentMethod,
+          paymentMethod: 'WALLET',
           notes: formData.notes
         })
       })
@@ -189,10 +300,9 @@ function OrderPageContent() {
 
       if (response.ok) {
         setSuccess(true)
-        // Redirect ke invoice page
-        setTimeout(() => {
-          router.push(data.redirectTo || `/member-dashboard/invoice/${data.order.id}`)
-        }, 2000)
+        setCreatedOrder(data.order)
+        // Refresh user data to get updated balance
+        await refreshUserData()
       } else {
         console.error('Order creation failed:', data)
         setError(data.error || data.details || 'Gagal membuat pesanan')
@@ -325,11 +435,65 @@ function OrderPageContent() {
       </header>
 
       <main className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8 relative z-10">
-        {success && (
+        {success && createdOrder && (
+          <div className="mb-6 bg-emerald-500/20 border-emerald-500/30 backdrop-blur-xl rounded-xl p-6">
+            <div className="flex items-center gap-3 mb-4">
+              <CheckCircle className="h-6 w-6 text-emerald-400" />
+              <div>
+                <h3 className="text-lg font-semibold text-emerald-300">Order Created Successfully!</h3>
+                <p className="text-emerald-400 text-sm">Your order has been placed and payment has been processed.</p>
+              </div>
+            </div>
+            
+            <div className="bg-emerald-500/10 rounded-lg p-4 mb-4">
+              <div className="flex justify-between items-center mb-2">
+                <span className="text-emerald-300 text-sm">Order ID:</span>
+                <span className="text-white font-mono font-semibold">{createdOrder.id}</span>
+              </div>
+              <div className="flex justify-between items-center mb-2">
+                <span className="text-emerald-300 text-sm">Amount Paid:</span>
+                <span className="text-white font-semibold">{formatCurrency(createdOrder.amount)}</span>
+              </div>
+              <div className="flex justify-between items-center">
+                <span className="text-emerald-300 text-sm">New Balance:</span>
+                <span className="text-emerald-400 font-semibold">{formatCurrency(user.balance)}</span>
+              </div>
+            </div>
+            
+            <div className="flex gap-3">
+              <Button
+                onClick={() => handleDownloadInvoice(createdOrder.id)}
+                disabled={downloadingInvoice}
+                className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white font-medium transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {downloadingInvoice ? (
+                  <>
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    Downloading...
+                  </>
+                ) : (
+                  <>
+                    <Download className="w-4 h-4 mr-2" />
+                    Download Invoice
+                  </>
+                )}
+              </Button>
+              <Button
+                variant="outline"
+                onClick={handleBack}
+                className="border-emerald-500/50 text-emerald-400 hover:bg-emerald-500/10 hover:text-emerald-300"
+              >
+                Back to Dashboard
+              </Button>
+            </div>
+          </div>
+        )}
+
+        {downloadSuccess && (
           <Alert className="mb-6 bg-emerald-500/20 border-emerald-500/30 backdrop-blur-xl">
             <CheckCircle className="h-4 w-4 text-emerald-400" />
             <AlertDescription className="text-emerald-300">
-              Order created successfully! Redirecting to invoice page...
+              Invoice berhasil diunduh!
             </AlertDescription>
           </Alert>
         )}
@@ -407,39 +571,53 @@ function OrderPageContent() {
               </CardHeader>
               <CardContent>
                 <form onSubmit={handleSubmit} className="space-y-8">
-                  {/* Payment Method */}
-                  <div className="space-y-3">
-                    <Label htmlFor="paymentMethod" className="text-white font-medium text-sm">
-                      Payment Method <span className="text-rose-400">*</span>
-                    </Label>
-                    <Select 
-                      value={formData.paymentMethod} 
-                      onValueChange={(value) => setFormData(prev => ({ ...prev, paymentMethod: value }))}
-                    >
-                      <SelectTrigger className="bg-slate-800/50 border-slate-600 text-white hover:border-slate-500 focus:border-violet-500 focus:ring-violet-500/20 transition-all duration-200">
-                        <SelectValue placeholder="Select payment method" />
-                      </SelectTrigger>
-                      <SelectContent className="bg-slate-800 border-slate-600">
-                        <SelectItem value="transfer" className="text-white hover:bg-slate-700">
-                          <div className="flex items-center gap-2">
-                            <Banknote className="w-4 h-4" />
-                            Bank Transfer
+                  {/* Wallet Payment */}
+                  <div className="space-y-4">
+                    <div className="bg-gradient-to-r from-emerald-500/20 to-teal-500/20 border border-emerald-500/30 rounded-xl p-4">
+                      <div className="flex items-center justify-between mb-3">
+                        <Label className="text-white font-medium flex items-center gap-2">
+                          <DollarSign className="w-4 h-4 text-emerald-400" />
+                          Wallet Payment
+                        </Label>
+                        <Badge className="bg-emerald-500/20 text-emerald-400 border-emerald-500/30">
+                          Available
+                        </Badge>
+                      </div>
+                      
+                      <div className="space-y-3">
+                        <div className="flex justify-between items-center">
+                          <span className="text-slate-300 text-sm">Your Balance:</span>
+                          <span className="text-lg font-bold text-emerald-400">
+                            {formatCurrency(user.balance)}
+                          </span>
+                        </div>
+                        
+                        <div className="flex justify-between items-center">
+                          <span className="text-slate-300 text-sm">Item Price:</span>
+                          <span className="text-lg font-semibold text-white">
+                            {formatCurrency(storeItem.price)}
+                          </span>
+                        </div>
+                        
+                        <div className="border-t border-emerald-500/30 pt-3">
+                          <div className="flex justify-between items-center">
+                            <span className="text-white font-medium">Remaining Balance:</span>
+                            <span className={`text-lg font-bold ${user.balance >= storeItem.price ? 'text-emerald-400' : 'text-rose-400'}`}>
+                              {formatCurrency(user.balance - storeItem.price)}
+                            </span>
                           </div>
-                        </SelectItem>
-                        <SelectItem value="ewallet" className="text-white hover:bg-slate-700">
-                          <div className="flex items-center gap-2">
-                            <CreditCard className="w-4 h-4" />
-                            E-Wallet
-                          </div>
-                        </SelectItem>
-                        <SelectItem value="qris" className="text-white hover:bg-slate-700">
-                          <div className="flex items-center gap-2">
-                            <DollarSign className="w-4 h-4" />
-                            QRIS
-                          </div>
-                        </SelectItem>
-                      </SelectContent>
-                    </Select>
+                        </div>
+                        
+                        {user.balance < storeItem.price && (
+                          <Alert className="bg-rose-500/20 border-rose-500/30 mt-3">
+                            <AlertCircle className="h-4 w-4 text-rose-400" />
+                            <AlertDescription className="text-rose-300 text-sm">
+                              Insufficient balance. Please top up your wallet first.
+                            </AlertDescription>
+                          </Alert>
+                        )}
+                      </div>
+                    </div>
                   </div>
 
                   {/* Notes */}
@@ -476,8 +654,9 @@ function OrderPageContent() {
                         </div>
                         <div className="flex justify-between text-sm">
                           <span className="text-slate-400">Payment Method</span>
-                          <span className="text-white capitalize">
-                            {formData.paymentMethod || 'Not selected'}
+                          <span className="text-white capitalize flex items-center gap-2">
+                            <DollarSign className="w-4 h-4 text-emerald-400" />
+                            Wallet Balance
                           </span>
                         </div>
                         <div className="border-t border-slate-700/50 pt-3">
@@ -504,18 +683,18 @@ function OrderPageContent() {
                     </Button>
                     <Button
                       type="submit"
-                      disabled={submitting || !formData.paymentMethod}
-                      className="flex-1 h-12 bg-gradient-to-r from-violet-600 to-purple-600 hover:from-violet-700 hover:to-purple-700 text-white font-medium transition-all duration-200 hover:shadow-lg hover:shadow-violet-500/25 disabled:opacity-50 disabled:cursor-not-allowed"
+                      disabled={submitting || user.balance < storeItem.price}
+                      className="flex-1 h-12 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white font-medium transition-all duration-200 hover:shadow-lg hover:shadow-emerald-500/25 disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                       {submitting ? (
                         <>
                           <Loader2 className="w-5 h-5 mr-2 animate-spin" />
-                          Processing...
+                          Processing Payment...
                         </>
                       ) : (
                         <>
                           <ShoppingCart className="w-5 h-5 mr-2" />
-                          Create Order
+                          Pay with Wallet ({formatCurrency(storeItem.price)})
                         </>
                       )}
                     </Button>

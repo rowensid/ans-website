@@ -62,6 +62,7 @@ import {
   Search
 } from 'lucide-react'
 import Logo from '@/components/logo'
+import TopUpWallet from '@/components/TopUpWallet'
 import ProfileDropdown from '@/components/ProfileDropdown'
 import EditProfileModal from '@/components/EditProfileModal'
 import ChangePasswordModal from '@/components/ChangePasswordModal'
@@ -975,61 +976,7 @@ export default function MemberDashboard() {
 
             {/* Wallet Tab */}
             {activeTab === 'wallet' && (
-              <div className="space-y-8">
-                <div className="flex items-center justify-between">
-                  <h2 className="text-3xl font-bold text-white">My Wallet</h2>
-                  <Button className="bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700">
-                    <CreditCard className="w-4 h-4 mr-2" />
-                    Top Up
-                  </Button>
-                </div>
-
-                <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                  <Card className="bg-gradient-to-br from-emerald-600/20 to-teal-600/20 backdrop-blur-xl border-emerald-500/30 lg:col-span-2">
-                    <CardHeader>
-                      <CardTitle className="text-white">Wallet Balance</CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                      <div className="text-center py-8">
-                        <p className="text-6xl font-bold text-white mb-2">Rp 0</p>
-                        <p className="text-emerald-400">Available Balance</p>
-                      </div>
-                    </CardContent>
-                  </Card>
-
-                  <Card className="bg-slate-800/30 backdrop-blur-xl border-slate-700/50">
-                    <CardHeader>
-                      <CardTitle className="text-white">Quick Actions</CardTitle>
-                    </CardHeader>
-                    <CardContent className="space-y-4">
-                      <Button className="w-full bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700">
-                        <CreditCard className="w-4 h-4 mr-2" />
-                        Top Up
-                      </Button>
-                      <Button variant="outline" className="w-full border-violet-500/50 text-violet-300 hover:bg-violet-500/20 hover:text-violet-200 hover:border-violet-400/50 transition-all duration-200">
-                        <History className="w-4 h-4 mr-2" />
-                        Transaction History
-                      </Button>
-                      <Button variant="outline" className="w-full border-violet-500/50 text-violet-300 hover:bg-violet-500/20 hover:text-violet-200 hover:border-violet-400/50 transition-all duration-200">
-                        <Download className="w-4 h-4 mr-2" />
-                        Download Statement
-                      </Button>
-                    </CardContent>
-                  </Card>
-                </div>
-
-                <Card className="bg-slate-800/30 backdrop-blur-xl border-slate-700/50">
-                  <CardHeader>
-                    <CardTitle className="text-white">Recent Transactions</CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="text-center py-12">
-                      <Wallet className="w-16 h-16 text-slate-500 mx-auto mb-4" />
-                      <p className="text-slate-400 text-lg">No transactions yet</p>
-                    </div>
-                  </CardContent>
-                </Card>
-              </div>
+              <TopUpWallet />
             )}
 
             {/* Profile Tab */}

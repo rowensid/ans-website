@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
+import { generateOrderId } from '@/lib/id-generator'
 
 export const runtime = 'nodejs'
 
@@ -70,16 +71,77 @@ export async function POST(request: NextRequest) {
       )
     }
 
+    // Check wallet balance for WALLET payment method
+    if (paymentMethod === 'WALLET') {
+      const userBalance = session.user.balance || 0
+      if (userBalance < amount) {
+        return NextResponse.json(
+          { error: 'Insufficient wallet balance' },
+          { status: 400 }
+        )
+      }
+    }
+
     // Create order
     const order = await db.order.create({
       data: {
+        id: generateOrderId(), // Generate proper order ID
         userId: session.userId,
         storeId,
         amount,
         paymentMethod,
-        status: 'PENDING'
+        status: paymentMethod === 'WALLET' ? 'COMPLETED' : 'PENDING'
       }
     })
+
+    // If wallet payment, deduct balance and create transaction
+    if (paymentMethod === 'WALLET') {
+      try {
+        // Create wallet transaction
+        await db.walletTransaction.create({
+          data: {
+            userId: session.userId,
+            type: 'PAYMENT',
+            amount: -amount, // Negative for deduction
+            description: `Payment for ${storeItem.title}`,
+            balance: (session.user.balance || 0) - amount,
+            metadata: {
+              orderId: order.id,
+              storeItemId: storeId,
+              paymentMethod: 'WALLET'
+            }
+          }
+        })
+
+        // Update user balance
+        await db.user.update({
+          where: { id: session.userId },
+          data: {
+            balance: {
+              decrement: amount
+            }
+          }
+        })
+
+        console.log('Wallet payment processed successfully:', {
+          userId: session.userId,
+          amount,
+          newBalance: (session.user.balance || 0) - amount
+        })
+
+      } catch (walletError) {
+        console.error('Failed to process wallet payment:', walletError)
+        // Update order status to failed
+        await db.order.update({
+          where: { id: order.id },
+          data: { status: 'FAILED' }
+        })
+        return NextResponse.json(
+          { error: 'Failed to process wallet payment' },
+          { status: 500 }
+        )
+      }
+    }
 
     // If this is a hosting/service type, create a service record
     if (['HOSTING', 'SERVER'].includes(storeItem.category)) {
@@ -108,7 +170,6 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({
       message: 'Order created successfully',
-      redirectTo: `/member-dashboard/invoice/${order.id}`,
       order: {
         id: order.id,
         amount: order.amount,

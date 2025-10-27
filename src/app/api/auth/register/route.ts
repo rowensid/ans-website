@@ -9,6 +9,17 @@ const registerSchema = z.object({
   password: z.string().min(6),
 })
 
+// Simple ID generator
+function generateShortId(length = 6): string {
+  const min = Math.pow(10, length - 1)
+  const max = Math.pow(10, length) - 1
+  return Math.floor(Math.random() * (max - min + 1) + min).toString()
+}
+
+function generateUserId(): string {
+  return generateShortId(6)
+}
+
 // Random avatar URLs
 const randomAvatars = [
   'https://api.dicebear.com/7.x/avataaars/svg?seed=',
@@ -44,9 +55,10 @@ export async function POST(request: NextRequest) {
     // Hash password
     const hashedPassword = await bcrypt.hash(password, 10)
 
-    // Create user
+    // Create user with short ID
     const user = await db.user.create({
       data: {
+        id: generateUserId(), // Use short ID instead of cuid
         email,
         name,
         password: hashedPassword,

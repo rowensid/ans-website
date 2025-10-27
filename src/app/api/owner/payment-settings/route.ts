@@ -2,6 +2,17 @@ import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { authMiddleware } from '@/lib/auth'
 
+// Simple ID generator
+function generateShortId(length = 6): string {
+  const min = Math.pow(10, length - 1)
+  const max = Math.pow(10, length) - 1
+  return Math.floor(Math.random() * (max - min + 1) + min).toString()
+}
+
+function generatePaymentSettingId(): string {
+  return generateShortId(7)
+}
+
 // GET payment settings
 export async function GET(request: NextRequest) {
   try {
@@ -90,9 +101,10 @@ export async function POST(request: NextRequest) {
         }
       })
     } else {
-      // Create new settings
+      // Create new settings with short ID
       paymentSettings = await db.paymentSetting.create({
         data: {
+          id: generatePaymentSettingId(), // Use short ID
           ownerUserId: auth.user.id,
           qrisImageUrl: qrisImageUrl || null,
           qrisNumber: qrisNumber || null,

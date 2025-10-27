@@ -24,6 +24,7 @@ export async function GET(request: NextRequest) {
         role: true,
         avatar: true,
         isActive: true,
+        balance: true, // Add balance field!
         createdAt: true,
         updatedAt: true
       }
@@ -108,6 +109,7 @@ export async function PUT(request: NextRequest) {
         role: true,
         avatar: true,
         isActive: true,
+        balance: true, // Add balance field!
         createdAt: true,
         updatedAt: true
       }

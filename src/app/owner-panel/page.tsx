@@ -51,6 +51,7 @@ import { formatRupiah } from '@/lib/currency'
 import UserManagement from '@/components/UserManagement'
 import StoreManagement from '@/components/StoreManagement'
 import OrderManagement from '@/components/OrderManagement'
+import DepositManagement from '@/components/DepositManagement'
 import PaymentSettings from '@/components/owner/PaymentSettings'
 
 export default function OwnerPanel() {
@@ -59,6 +60,7 @@ export default function OwnerPanel() {
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [stats, setStats] = useState<any>(null)
   const [activeTab, setActiveTab] = useState('dashboard')
+  const [activeSettingsTab, setActiveSettingsTab] = useState('payment')
   const [mounted, setMounted] = useState(false)
   const [currentTime, setCurrentTime] = useState<string>('')
   const [notifications, setNotifications] = useState(3)
@@ -296,6 +298,14 @@ export default function OwnerPanel() {
       borderColor: 'border-amber-500/30'
     },
     { 
+      id: 'deposits', 
+      label: 'Deposits', 
+      icon: <DollarSign className="w-5 h-5" />, 
+      color: 'from-emerald-600 to-teal-600',
+      bgColor: 'bg-emerald-600/10',
+      borderColor: 'border-emerald-500/30'
+    },
+    { 
       id: 'servers', 
       label: 'Servers', 
       icon: <Globe className="w-5 h-5" />, 
@@ -309,7 +319,13 @@ export default function OwnerPanel() {
       icon: <Settings className="w-5 h-5" />, 
       color: 'from-slate-600 to-gray-600',
       bgColor: 'bg-slate-600/10',
-      borderColor: 'border-slate-500/30'
+      borderColor: 'border-slate-500/30',
+      hasSubmenu: true,
+      submenu: [
+        { id: 'payment', label: 'Payment', icon: <DollarSign className="w-4 h-4" /> },
+        { id: 'api', label: 'API', icon: <Terminal className="w-4 h-4" />, comingSoon: true },
+        { id: 'website', label: 'Website', icon: <Globe className="w-4 h-4" />, comingSoon: true }
+      ]
     },
   ]
 
@@ -426,24 +442,65 @@ export default function OwnerPanel() {
             {/* Navigation */}
             <nav className="flex-1 p-4 space-y-2">
               {menuItems.map((item) => (
-                <button
-                  key={item.id}
-                  onClick={() => setActiveTab(item.id)}
-                  className={cn(
-                    "w-full flex items-center space-x-3 px-4 py-3 rounded-lg transition-all duration-200",
-                    activeTab === item.id
-                      ? `${item.bgColor} ${item.borderColor} border text-white`
-                      : "text-gray-400 hover:text-white hover:bg-white/5"
+                <div key={item.id}>
+                  <button
+                    onClick={() => {
+                      setActiveTab(item.id)
+                      if (item.id === 'settings') {
+                        setActiveSettingsTab('payment')
+                      }
+                    }}
+                    className={cn(
+                      "w-full flex items-center space-x-3 px-4 py-3 rounded-lg transition-all duration-200",
+                      activeTab === item.id
+                        ? `${item.bgColor} ${item.borderColor} border text-white`
+                        : "text-gray-400 hover:text-white hover:bg-white/5"
+                    )}
+                  >
+                    <div className={cn(
+                      "w-8 h-8 rounded-lg flex items-center justify-center",
+                      activeTab === item.id ? item.color : ""
+                    )}>
+                      {item.icon}
+                    </div>
+                    <span className="font-medium">{item.label}</span>
+                    {item.hasSubmenu && (
+                      <ChevronRight className={cn(
+                        "w-4 h-4 ml-auto transition-transform duration-200",
+                        activeTab === item.id ? "rotate-90" : ""
+                      )} />
+                    )}
+                  </button>
+                  
+                  {/* Submenu */}
+                  {item.hasSubmenu && activeTab === item.id && (
+                    <div className="ml-4 mt-2 space-y-1">
+                      {item.submenu.map((subItem) => (
+                        <button
+                          key={subItem.id}
+                          onClick={() => setActiveSettingsTab(subItem.id)}
+                          className={cn(
+                            "w-full flex items-center space-x-3 px-4 py-2 rounded-lg transition-all duration-200",
+                            activeSettingsTab === subItem.id
+                              ? "bg-white/10 text-white border border-white/20"
+                              : "text-gray-500 hover:text-white hover:bg-white/5"
+                          )}
+                          disabled={subItem.comingSoon}
+                        >
+                          <div className="w-6 h-6 rounded flex items-center justify-center">
+                            {subItem.icon}
+                          </div>
+                          <span className="text-sm font-medium">{subItem.label}</span>
+                          {subItem.comingSoon && (
+                            <Badge className="ml-auto text-xs bg-yellow-500/20 text-yellow-400 border-yellow-500/30">
+                              Coming Soon
+                            </Badge>
+                          )}
+                        </button>
+                      ))}
+                    </div>
                   )}
-                >
-                  <div className={cn(
-                    "w-8 h-8 rounded-lg flex items-center justify-center",
-                    activeTab === item.id ? item.color : ""
-                  )}>
-                    {item.icon}
-                  </div>
-                  <span className="font-medium">{item.label}</span>
-                </button>
+                </div>
               ))}
             </nav>
 
@@ -706,6 +763,8 @@ export default function OwnerPanel() {
 
             {activeTab === 'orders' && <OrderManagement />}
 
+            {activeTab === 'deposits' && <DepositManagement />}
+
             {activeTab === 'servers' && (
               <div className="space-y-6">
                 <Card className="bg-black/40 backdrop-blur-2xl border-white/10 shadow-2xl">
@@ -730,7 +789,116 @@ export default function OwnerPanel() {
             )}
 
             {activeTab === 'settings' && (
-              <PaymentSettings />
+              <div>
+                {/* Settings Header */}
+                <div className="mb-6">
+                  <h1 className="text-3xl font-bold text-white mb-2">Settings</h1>
+                  <p className="text-purple-300">Manage your application settings and configurations</p>
+                </div>
+
+                {/* Settings Submenu Navigation */}
+                <div className="flex space-x-1 mb-6 p-1 bg-black/20 rounded-lg border border-white/10">
+                  <button
+                    onClick={() => setActiveSettingsTab('payment')}
+                    className={cn(
+                      "flex items-center space-x-2 px-4 py-2 rounded-md transition-all duration-200",
+                      activeSettingsTab === 'payment'
+                        ? "bg-gradient-to-r from-violet-600 to-purple-600 text-white"
+                        : "text-gray-400 hover:text-white hover:bg-white/10"
+                    )}
+                  >
+                    <DollarSign className="w-4 h-4" />
+                    <span>Payment</span>
+                  </button>
+                  <button
+                    onClick={() => setActiveSettingsTab('api')}
+                    className={cn(
+                      "flex items-center space-x-2 px-4 py-2 rounded-md transition-all duration-200",
+                      activeSettingsTab === 'api'
+                        ? "bg-gradient-to-r from-violet-600 to-purple-600 text-white"
+                        : "text-gray-400 hover:text-white hover:bg-white/10"
+                    )}
+                  >
+                    <Terminal className="w-4 h-4" />
+                    <span>API</span>
+                    <Badge className="ml-2 text-xs bg-yellow-500/20 text-yellow-400 border-yellow-500/30">
+                      Coming Soon
+                    </Badge>
+                  </button>
+                  <button
+                    onClick={() => setActiveSettingsTab('website')}
+                    className={cn(
+                      "flex items-center space-x-2 px-4 py-2 rounded-md transition-all duration-200",
+                      activeSettingsTab === 'website'
+                        ? "bg-gradient-to-r from-violet-600 to-purple-600 text-white"
+                        : "text-gray-400 hover:text-white hover:bg-white/10"
+                    )}
+                  >
+                    <Globe className="w-4 h-4" />
+                    <span>Website</span>
+                    <Badge className="ml-2 text-xs bg-yellow-500/20 text-yellow-400 border-yellow-500/30">
+                      Coming Soon
+                    </Badge>
+                  </button>
+                </div>
+
+                {/* Settings Content */}
+                {activeSettingsTab === 'payment' && <PaymentSettings />}
+                
+                {activeSettingsTab === 'api' && (
+                  <Card className="bg-black/40 backdrop-blur-2xl border border-white/10">
+                    <CardHeader>
+                      <CardTitle className="text-white flex items-center gap-2">
+                        <Terminal className="w-5 h-5 text-violet-400" />
+                        API Settings
+                      </CardTitle>
+                      <CardDescription className="text-purple-300">
+                        Configure API keys, webhooks, and integrations
+                      </CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="text-center py-12">
+                        <Terminal className="w-16 h-16 text-purple-400 mx-auto mb-4" />
+                        <h3 className="text-xl font-semibold text-white mb-2">API Configuration</h3>
+                        <p className="text-purple-300 mb-4">Advanced API management features coming soon...</p>
+                        <div className="space-y-2 text-sm text-gray-400">
+                          <p>• API Key Management</p>
+                          <p>• Webhook Configuration</p>
+                          <p>• Rate Limiting</p>
+                          <p>• API Documentation</p>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                )}
+                
+                {activeSettingsTab === 'website' && (
+                  <Card className="bg-black/40 backdrop-blur-2xl border border-white/10">
+                    <CardHeader>
+                      <CardTitle className="text-white flex items-center gap-2">
+                        <Globe className="w-5 h-5 text-violet-400" />
+                        Website Settings
+                      </CardTitle>
+                      <CardDescription className="text-purple-300">
+                        Customize website appearance, content, and SEO settings
+                      </CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="text-center py-12">
+                        <Globe className="w-16 h-16 text-purple-400 mx-auto mb-4" />
+                        <h3 className="text-xl font-semibold text-white mb-2">Website Configuration</h3>
+                        <p className="text-purple-300 mb-4">Advanced website management features coming soon...</p>
+                        <div className="space-y-2 text-sm text-gray-400">
+                          <p>• Theme Customization</p>
+                          <p>• SEO Settings</p>
+                          <p>• Content Management</p>
+                          <p>• Analytics Integration</p>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                )}
+              </div>
             )}
           </main>
         </div>

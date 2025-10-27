@@ -8,7 +8,7 @@ datasource db {
 }
 
 model User {
-  id              String              @id @default(cuid())
+  id              String              @id @default("")
   email           String              @unique
   name            String?
   password        String
@@ -26,11 +26,12 @@ model User {
   services        Service[]
   sessions        Session[]
   transactions    WalletTransaction[]
+  deposits        DepositRequest[]
   paymentSetting  PaymentSetting?
 }
 
 model Session {
-  id        String   @id @default(cuid())
+  id        String   @id @default("")
   userId    String
   token     String   @unique
   expiresAt DateTime
@@ -39,7 +40,7 @@ model Session {
 }
 
 model Service {
-  id          String        @id @default(cuid())
+  id          String        @id @default("")
   name        String
   type        ServiceType
   status      ServiceStatus @default(PENDING)
@@ -57,7 +58,7 @@ model Service {
 }
 
 model Order {
-  id              String      @id @default(cuid())
+  id              String      @id @default("")
   userId          String
   storeId         String?
   serviceId       String?
@@ -75,7 +76,7 @@ model Order {
 }
 
 model PterodactylServer {
-  id              String   @id @default(cuid())
+  id              String   @id @default("")
   pteroId         String   @unique
   identifier      String   @unique
   name            String
@@ -108,7 +109,7 @@ model PterodactylServer {
 }
 
 model ApiConfiguration {
-  id          String   @id @default(cuid())
+  id          String   @id @default("")
   name        String   @unique
   apiUrl      String
   apiKey      String
@@ -119,7 +120,7 @@ model ApiConfiguration {
 }
 
 model LoginHistory {
-  id        String   @id @default(cuid())
+  id        String   @id @default("")
   userId    String
   loginTime DateTime @default(now())
   ip        String
@@ -136,7 +137,7 @@ model LoginHistory {
 }
 
 model StoreItem {
-  id          String        @id @default(cuid())
+  id          String        @id @default("")
   title       String        @unique
   description String?
   price       Float
@@ -152,7 +153,7 @@ model StoreItem {
 }
 
 model Invoice {
-  id            String        @id @default(cuid())
+  id            String        @id @default("")
   invoiceNumber String        @unique
   userId        String
   orderId       String?
@@ -170,7 +171,7 @@ model Invoice {
 }
 
 model WalletTransaction {
-  id          String          @id @default(cuid())
+  id          String          @id @default("")
   userId      String
   type        TransactionType
   amount      Float
@@ -179,10 +180,38 @@ model WalletTransaction {
   metadata    Json?
   createdAt   DateTime        @default(now())
   user        User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  deposits    DepositRequest[]
+}
+
+model DepositRequest {
+  id            String           @id @default("")
+  userId        String
+  amount        Float
+  paymentMethod String
+  proofUrl      String?          // URL of uploaded payment proof
+  status        DepositStatus    @default(PENDING)
+  adminNotes    String?
+  processedBy   String?          // Admin/Owner ID who processed this
+  processedAt   DateTime?
+  transactionId String?
+  createdAt     DateTime         @default(now())
+  updatedAt     DateTime         @updatedAt
+  user          User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  transaction   WalletTransaction? @relation(fields: [transactionId], references: [id])
+}
+
+model PaymentMethod {
+  id        String           @id @default("")
+  name      String
+  type      PaymentMethodType
+  config    Json
+  isActive  Boolean          @default(true)
+  createdAt DateTime         @default(now())
+  updatedAt DateTime         @updatedAt
 }
 
 model PaymentSetting {
-  id            String   @id @default(cuid())
+  id            String   @id @default("")
   ownerUserId   String   @unique
   qrisImageUrl  String?
   qrisNumber    String?
@@ -195,7 +224,7 @@ model PaymentSetting {
 }
 
 model BankAccount {
-  id              String @id @default(cuid())
+  id              String @id @default("")
   paymentSettingId String
   bankName        String
   bankNumber      String
@@ -207,7 +236,7 @@ model BankAccount {
 }
 
 model EWalletAccount {
-  id                String @id @default(cuid())
+  id                String @id @default("")
   paymentSettingId  String
   ewalletName       String
   ewalletNumber     String
@@ -259,6 +288,19 @@ enum TransactionType {
   REFUND
   BONUS
   PENALTY
+}
+
+enum DepositStatus {
+  PENDING
+  VALIDATING
+  APPROVED
+  REJECTED
+}
+
+enum PaymentMethodType {
+  QRIS
+  BANK_TRANSFER
+  EWALLET
 }
 
 enum StoreCategory {

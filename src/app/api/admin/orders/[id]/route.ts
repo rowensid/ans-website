@@ -13,7 +13,9 @@ export async function PUT(
   { params }: { params: { id: string } }
 ) {
   try {
-    const sessionToken = request.cookies.get('session-token')?.value;
+    // Try both cookie and authorization header
+    const sessionToken = request.cookies.get('session-token')?.value ||
+                       request.headers.get('authorization')?.replace('Bearer ', '');
     
     if (!sessionToken) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });

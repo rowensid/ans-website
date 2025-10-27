@@ -5,6 +5,21 @@ import jwt from 'jsonwebtoken'
 
 const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key'
 
+// Simple ID generators
+function generateShortId(length = 6): string {
+  const min = Math.pow(10, length - 1)
+  const max = Math.pow(10, length) - 1
+  return Math.floor(Math.random() * (max - min + 1) + min).toString()
+}
+
+function generateSessionId(): string {
+  return generateShortId(12)
+}
+
+function generateLoginHistoryId(): string {
+  return generateShortId(10)
+}
+
 // Fungsi untuk mendeteksi device dari user agent
 function detectDevice(userAgent: string): string {
   const ua = userAgent.toLowerCase()
@@ -136,6 +151,7 @@ export async function POST(request: NextRequest) {
 
     await db.session.create({
       data: {
+        id: generateSessionId(), // Use short ID
         userId: user.id,
         token,
         expiresAt
@@ -146,6 +162,7 @@ export async function POST(request: NextRequest) {
     try {
       await db.loginHistory.create({
         data: {
+          id: generateLoginHistoryId(), // Use short ID
           userId: user.id,
           ip,
           userAgent,

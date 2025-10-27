@@ -77,6 +77,7 @@ export async function GET(request: NextRequest) {
           lastLoginAt: true,
           createdAt: true,
           updatedAt: true,
+          balance: true, // Add balance field
           _count: {
             select: {
               orders: true,
